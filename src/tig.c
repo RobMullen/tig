@@ -655,6 +655,8 @@ main(int argc, const char *argv[])
 	enum request request = parse_options(argc, argv, pager_mode);
 	struct view *view;
 
+	prompt_init();
+
 	signal(SIGPIPE, SIG_IGN);
 
 	if (setlocale(LC_ALL, "")) {
