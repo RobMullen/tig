@@ -133,6 +133,51 @@ readline_display(void)
 }
 
 static char *
+variable_generator(char *text, int state)
+{
+	/* XXX generate this */
+	static const char *vars[] = {
+		"%(directory)",
+		"%(file)",
+		"%(ref)",
+		"%(head)",
+		"%(commit)",
+		"%(blob)",
+		"%(branch)",
+		"%(stash)",
+		"%(prompt)",
+		NULL
+	};
+
+	static int index, len;
+	const char *name;
+	struct format_context format = { NULL };
+	char *variable = NULL; /* No match */
+
+	/* If it is a new word to complete, initialize */
+	if (!state) {
+		index = 0;
+		len = strlen(text);
+	}
+
+	/* Return the next name which partially matches */
+	while (name = vars[index]) {
+		index++;
+
+		/* Complete or format a variable */
+		if (strncmp(name, text, len) == 0) {
+			if (strlen(name) > len)
+				variable = strdup(name);
+			else if (format_expand_arg(&format, text))
+				variable = strdup(format.buf);
+			break;
+		}
+	}
+
+	return variable;
+}
+
+static char *
 action_generator(char *text, int state)
 {
 	static const char *actions[] = {
@@ -182,6 +227,10 @@ tig_completion(char *text, int start, int end)
 	/* Do not append a space after a completion */
 	rl_completion_suppress_append = 1;
 
+#if 0
+	printf("text: \"%s\", start: %d, end: %d\n", text, start, end);
+#endif
+
 	/*
 	 * If the word is at the start of the line, then it is a tig action to
 	 * complete. Otherwise it is a variable name or the name of a file in
@@ -189,6 +238,9 @@ tig_completion(char *text, int start, int end)
 	 */
 	if (start == 0)
 		return completion_matches(text, action_generator);
+
+	if (strncmp(text, "%(", 2) == 0)
+		return completion_matches(text, variable_generator);
 
 	return NULL;
 }
@@ -216,6 +268,9 @@ readline_init(void)
 {
 	/* Allow conditional parsing of the ~/.inputrc file. */
 	rl_readline_name = "tig";
+
+	/* Word break caracters (we removed '(' to match variables) */
+	rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{";
 
 	/* Custom display function */
 	rl_redisplay_function = readline_display;
