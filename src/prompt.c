@@ -18,6 +18,7 @@
 #include "tig/options.h"
 #include "tig/prompt.h"
 #include "tig/pager.h"
+#include "tig/types.h"
 
 #ifdef HAVE_LIBREADLINE
 #include <readline/readline.h>
@@ -133,25 +134,17 @@ readline_display(void)
 }
 
 static char *
-variable_generator(char *text, int state)
+variable_generator(const char *text, int state)
 {
 	/* XXX generate this */
 	static const char *vars[] = {
-		"%(directory)",
-		"%(file)",
-		"%(ref)",
-		"%(head)",
-		"%(commit)",
-		"%(blob)",
-		"%(branch)",
-		"%(stash)",
-		"%(prompt)",
+#define FORMAT_VAR(name, ifempty, initval) "%(" #name ")"
+		ARGV_ENV_INFO(FORMAT_VAR),
 		NULL
 	};
 
 	static int index, len;
 	const char *name;
-	struct format_context format = { NULL };
 	char *variable = NULL; /* No match */
 
 	/* If it is a new word to complete, initialize */
@@ -161,15 +154,15 @@ variable_generator(char *text, int state)
 	}
 
 	/* Return the next name which partially matches */
-	while (name = vars[index]) {
+	while ((name = vars[index])) {
 		index++;
 
 		/* Complete or format a variable */
 		if (strncmp(name, text, len) == 0) {
 			if (strlen(name) > len)
 				variable = strdup(name);
-			else if (format_expand_arg(&format, text))
-				variable = strdup(format.buf);
+			else
+				variable = argv_format_arg(&argv_env, text);
 			break;
 		}
 	}
@@ -178,7 +171,7 @@ variable_generator(char *text, int state)
 }
 
 static char *
-action_generator(char *text, int state)
+action_generator(const char *text, int state)
 {
 	static const char *actions[] = {
 #define REQ_GROUP(help)
@@ -200,8 +193,8 @@ action_generator(char *text, int state)
 	}
 
 	/* Return the next name which partially matches */
-	while (name = actions[index]) {
-		name = enum_map_name(name, strlen(name));
+	while ((name = actions[index])) {
+		name = enum_name_static(name, strlen(name));
 		index++;
 
 		if (strncmp(name, text, len) == 0) {
@@ -222,7 +215,7 @@ readline_getc(FILE *stream)
 }
 
 static char **
-tig_completion(char *text, int start, int end)
+tig_completion(const char *text, int start, int end)
 {
 	/* Do not append a space after a completion */
 	rl_completion_suppress_append = 1;
@@ -237,10 +230,10 @@ tig_completion(char *text, int start, int end)
 	 * the current directory.
 	 */
 	if (start == 0)
-		return completion_matches(text, action_generator);
+		return rl_completion_matches(text, action_generator);
 
 	if (strncmp(text, "%(", 2) == 0)
-		return completion_matches(text, variable_generator);
+		return rl_completion_matches(text, variable_generator);
 
 	return NULL;
 }
@@ -277,7 +270,7 @@ readline_init(void)
 	rl_getc_function = readline_getc;
 
 	/* Completion support */
-	rl_attempted_completion_function = (rl_completion_func_t *) tig_completion;
+	rl_attempted_completion_function = tig_completion;
 
 	rl_completion_display_matches_hook = readline_display_matches;
 }
